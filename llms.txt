@@ -1,0 +1,194 @@
+# sACNKit - LLM Documentation
+
+## Project Overview
+sACNKit is a comprehensive Swift implementation of ANSI E1.31-2018 (Entertainment Technology - Lightweight streaming protocol for transport of DMX512 using ACN). This protocol, commonly known as sACN (streaming ACN), is used in professional lighting control systems to transmit DMX512 data over IP networks.
+
+## Core Architecture
+
+### Protocol Layers (Sources/sACNKit/Layers/)
+The library implements a layered protocol architecture matching E1.31-2018 specification:
+
+- **RootLayer**: Base E1.31 protocol layer with packet identification
+  - Contains vector (describes data type) and CID (source UUID)
+  - Handles protocol identification and routing
+
+- **DataFramingLayer**: Contains DMX universe data and metadata
+  - Includes source name, priority, sequence number, options, universe number
+  - Carries the actual DMX data payload
+
+- **UniverseDiscoveryFramingLayer**: For universe discovery messages
+  - Contains source name and discovery-specific framing
+
+- **UniverseDiscoveryLayer**: Lists available universes from sources
+  - Enumerates which universes a source is transmitting
+
+- **DMPLayer**: Device Management Protocol layer for actual DMX data
+  - Contains the 512 channels of DMX512-A data
+  - Supports NULL start code (0x00) for levels and per-address priority start code (0xdd)
+
+### Core Components
+
+#### Sources (Transmitters) - Sources/sACNKit/Source/
+- **sACNSource**: Main source class for transmitting sACN data
+  - Manages multiple universes and network interfaces
+  - Handles timing, sequencing, and termination messages
+  - Supports IPv4, IPv6, and dual-stack operation
+
+- **sACNSourceUniverse**: Universe data container with levels and priorities
+  - Contains 512 DMX channels (levels) and optional per-channel priorities
+  - Validates universe numbers (1-63999) and priority values (0-200)
+
+- **SourceUniverse**: Internal universe management (private implementation)
+  - Handles framing layers, DMP data, sequence numbering
+  - Manages dirty flags for transmission optimization
+
+#### Receivers - Sources/sACNKit/Receiver/
+- **sACNReceiver**: Single universe receiver with automatic merging
+  - Combines sACNReceiverRaw and sACNMerger functionality
+  - Provides merged output from multiple sources with priority handling
+
+- **sACNReceiverGroup**: Multi-universe receiver management
+  - Manages multiple sACNReceiver instances with shared configuration
+  - Provides convenience for applications handling many universes
+
+- **sACNReceiverRaw**: Low-level receiver without merging
+  - Receives raw, unmerged data from individual sources
+  - Useful for custom merging logic or source monitoring
+
+- **sACNDiscoveryReceiver**: Universe discovery message receiver
+  - Discovers available sources and their transmitted universes
+  - Provides source information (name, CID, universe list)
+
+#### Data Merging - Sources/sACNKit/Merger/
+- **sACNMerger**: Standalone data merging engine
+  - Implements HTP (Highest Takes Precedence) merging
+  - Supports per-universe and per-address priority
+  - Tracks winning sources for each DMX channel
+
+- **MergerSource**: Represents a source in the merger
+  - Contains source data, priority, and state information
+
+#### Networking - Sources/sACNKit/Shared/
+- **ComponentSocket**: UDP socket wrapper using CocoaAsyncSocket
+  - Handles IPv4, IPv6, and dual-stack networking
+  - Manages multicast group membership for sACN
+  - Provides asynchronous networking with delegate callbacks
+
+### Key Concepts
+
+#### Universe
+- A collection of 512 DMX channels (addresses 1-512)
+- Valid universe numbers range from 1-63999
+- Universe 64214 is reserved for discovery messages
+
+#### Priority System
+- **Per-universe priority**: 0-200, affects entire universe
+- **Per-address priority**: 0-200, affects individual DMX channels
+- **Default priority**: 100
+- Priority 0 = lowest, 200 = highest
+- Equal priorities use HTP (Highest Takes Precedence) for level merging
+
+#### Sampling Period
+- Initial period when receivers discover all available sources
+- Prevents incomplete merging during source enumeration
+- Configurable duration based on network conditions
+
+#### CID (Component Identifier)
+- UUID identifying each sACN source
+- Should persist across application launches
+- Used for source tracking and conflict resolution
+
+## Data Structures
+
+### sACNReceiverMergedData
+```swift
+public struct sACNReceiverMergedData {
+    public var universe: UInt16           // Universe number (1-63999)
+    public var levels: [UInt8]            // 512 DMX channel levels (0-255)
+    public var winners: [UUID?]           // Winning source for each channel
+    public var activeSources: [UUID]      // All active source identifiers
+    public var numberOfActiveSources: Int // Count of active sources
+}
+```
+
+### sACNReceiverRawSourceData
+```swift
+public struct sACNReceiverRawSourceData {
+    public var cid: UUID                  // Source identifier
+    public var values: [UInt8]            // Raw DMX data from this source
+    public var priority: UInt8            // Source priority
+    public var startCode: UInt8           // DMX start code (0x00 or 0xdd)
+    // Additional metadata...
+}
+```
+
+## Protocol Implementation Details
+
+### Network Specifications
+- **Multicast addresses**: 
+  - IPv4: 239.255.0.x (where x = universe & 0xFF)
+  - IPv6: FF18::83:00:0:x (where x = universe)
+- **Port**: 5568 (ACN_SDT_MULTICAST_PORT)
+- **Transmission rate**: ~44 Hz for active data, reduced for static data
+- **Packet format**: Follows E1.31-2018 specification exactly
+
+### Error Handling
+The library provides comprehensive error types:
+- **sACNSourceValidationError**: Source configuration and state errors
+- **sACNReceiverValidationError**: Receiver configuration errors  
+- **sACNComponentSocketError**: Network and socket errors
+
+### Thread Safety
+- All public APIs are thread-safe
+- Internal state protected by dispatch queues
+- Delegate callbacks occur on specified queues
+- Asynchronous network operations with proper synchronization
+
+## Usage Patterns
+
+### Basic Source (Transmitter)
+1. Create sACNSource with CID and delegate queue
+2. Create sACNSourceUniverse with universe number, priority, and levels
+3. Add universe to source using addUniverse()
+4. Start transmission with start()
+5. Update levels using updateSlot() or updateLevels()
+
+### Basic Receiver (Single Universe)
+1. Create sACNReceiver with universe and delegate queue
+2. Implement sACNReceiverDelegate for data callbacks
+3. Set delegate and start receiving
+4. Handle merged data in receiverMergedData callback
+
+### Multi-Universe Receiver
+1. Create sACNReceiverGroup with configuration
+2. Add universes using add(universe:)
+3. Implement sACNReceiverGroupDelegate
+4. Receive per-universe callbacks
+
+### Universe Discovery
+1. Create sACNDiscoveryReceiver
+2. Implement sACNDiscoveryReceiverDelegate
+3. Handle discovered sources in discoveryReceiverReceivedInfo
+
+## Dependencies
+- **CocoaAsyncSocket**: UDP networking implementation
+- **Foundation**: Core Swift/Objective-C runtime
+- **Dispatch**: Concurrent programming support
+
+## Deployment Requirements
+- iOS 12.0+ / macOS 11.0+
+- Swift 5.5+
+- Xcode 13.0+
+
+## File Organization Summary
+```
+Sources/sACNKit/
+├── Source/              # Transmitter implementation
+├── Receiver/            # Receiver implementations and delegates
+├── Merger/              # Data merging logic
+├── Layers/              # Protocol layer implementations
+├── Shared/              # Common utilities, DMX definitions, networking
+└── Vendor/              # Third-party code (dispatch utilities)
+```
+
+This library provides a complete, production-ready implementation of the sACN protocol with comprehensive support for both transmission and reception of DMX512 data over IP networks.
