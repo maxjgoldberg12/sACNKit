@@ -180,6 +180,34 @@ The library provides comprehensive error types:
 - Swift 5.5+
 - Xcode 13.0+
 
+## SwiftUI Example Implementation
+
+### Reference Implementation (Examples/)
+A complete SwiftUI application demonstrating sACN data reception:
+
+- **sACNReceiverApp.swift**: Main app entry point
+- **sACNReceiverView.swift**: Comprehensive SwiftUI view with three display modes
+- **sACNReceiverViewModel.swift**: ObservableObject managing sACN receiver and real-time data
+
+### SwiftUI Integration Features
+- **Real-time DMX visualization**: Grid, list, and fader display modes
+- **Universe and address range configuration**: User-configurable reception parameters
+- **Source monitoring**: Live display of active sACN transmitters
+- **Status feedback**: Connection state, sampling progress, and error handling
+- **Thread-safe updates**: Uses @MainActor for UI synchronization
+
+### SwiftUI Usage Pattern
+```swift
+@StateObject private var viewModel = sACNReceiverViewModel()
+
+// Start receiving universe 1, channels 1-16
+viewModel.startReceiving(universe: 1, startAddress: 1, endAddress: 16)
+
+// Get current channel values
+let channelValue = viewModel.getChannelValue(at: 5)
+let percentage = viewModel.getChannelPercentage(at: 5)
+```
+
 ## File Organization Summary
 ```
 Sources/sACNKit/
@@ -188,7 +216,12 @@ Sources/sACNKit/
 ├── Merger/              # Data merging logic
 ├── Layers/              # Protocol layer implementations
 ├── Shared/              # Common utilities, DMX definitions, networking
-└── Vendor/              # Third-party code (dispatch utilities)
+├── Vendor/              # Third-party code (dispatch utilities)
+└── Examples/            # SwiftUI reference implementation
+    ├── sACNReceiverApp.swift      # Main app entry point
+    ├── sACNReceiverView.swift     # Complete SwiftUI interface
+    ├── sACNReceiverViewModel.swift # ObservableObject for data management
+    └── README.md                  # Example documentation
 ```
 
-This library provides a complete, production-ready implementation of the sACN protocol with comprehensive support for both transmission and reception of DMX512 data over IP networks.
+This library provides a complete, production-ready implementation of the sACN protocol with comprehensive support for both transmission and reception of DMX512 data over IP networks, including modern SwiftUI integration examples.
