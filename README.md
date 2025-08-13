@@ -29,14 +29,14 @@ sACNKit provides a complete implementation of the sACN (streaming ACN) protocol,
 Add sACNKit to your project using Xcode:
 
 1. In Xcode, go to **File → Add Package Dependencies...**
-2. Enter the repository URL: `https://github.com/dsmurfin/sACNKit`
+2. Enter the repository URL: `https://github.com/maxjgoldberg12/sACNKit`
 3. Select the version requirements and add to your target
 
 Or add it to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/dsmurfin/sACNKit", from: "1.0.0")
+    .package(url: "https://github.com/maxjgoldberg12/sACNKit", from: "1.0.0")
 ],
 targets: [
     .target(
